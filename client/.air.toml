@@ -1,0 +1,30 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/main"
+bin = "tmp/main"
+full_bin = "./tmp/main"
+include_ext = ["go", "html"]
+exclude_dir = ["tmp"]
+include_dir = []
+exclude_file = []
+log = "air.log"
+delay = 1000 # ms
+stop_on_error = true
+# Send Interrupt signal before killing process (Windows does not support this feature)
+send_interrupt = true
+# Delay after sending Interrupt signal
+kill_delay = 500 # ms
+
+[log]
+time = false
+
+[color]
+main = "black"
+watcher = "green"
+build = "black"
+runner = "yellow"
+
+[misc]
+clean_on_exit = true
