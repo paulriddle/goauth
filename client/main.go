@@ -36,63 +36,27 @@ type serverError struct {
 	ErrorMessage  string
 }
 
+var client = clientInfo{
+	id:            "goauth",
+	secret:        "random-string",
+	scope:         "all",
+	redirect_uris: []string{serverAddress + "/callback"},
+}
+
+var authServer = authServerInfo{
+	authEndpoint:  authServerAddress + "/authorize",
+	tokenEndpoint: authServerAddress + "/token",
+}
+
 func main() {
-	// Panic if any of the templates are missing
-	indexTempl := newTemplate("index.gohtml")
-	errorTempl := newTemplate("error.gohtml")
-
-	client := clientInfo{
-		id:            "goauth",
-		secret:        "random-string",
-		scope:         "all",
-		redirect_uris: []string{serverAddress + "/callback"},
-	}
-
-	authServer := authServerInfo{
-		authEndpoint:  authServerAddress + "/authorize",
-		tokenEndpoint: authServerAddress + "/token",
-	}
-
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		var creds credentials
-		indexTempl.Execute(w, creds)
-	})
-
-	authorizeURL, err := url.Parse(authServer.authEndpoint)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	authorizeURL.Query().Set("response_type", "code")
-	authorizeURL.Query().Set("scope", client.scope)
-	authorizeURL.Query().Set("client_id", client.id)
-	authorizeURL.Query().Set("redirect_uri", client.redirect_uris[0])
-
-	mux.Handle("/authorize",
-		http.RedirectHandler(authorizeURL.String(), http.StatusFound))
-
+	mux.Handle("/", http.HandlerFunc(rootHandler))
+	mux.Handle("/authorize", http.HandlerFunc(authorizeHandler))
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 	})
-
-	mux.HandleFunc("/fetch_resource", func(w http.ResponseWriter, r *http.Request) {
-		accessToken, err := r.Cookie("accessToken")
-		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			whatHappened := serverError{
-				StatusCode:    http.StatusUnauthorized,
-				StatusMessage: http.StatusText(http.StatusUnauthorized),
-				ErrorMessage:  "Missing access token",
-			}
-			errorTempl.Execute(w, whatHappened)
-			return
-		}
-		// http.Post(protectedResource, )
-		creds := credentials{accessToken: accessToken.Name}
-		indexTempl.Execute(w, creds)
-	})
-
+	mux.HandleFunc("/fetch_resource", http.HandlerFunc(fetchResourceHandler))
 	fmt.Println("Listening on " + serverAddress)
-	http.ListenAndServe(":8080", mux)
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
 func newTemplate(filename string) *template.Template {
@@ -101,4 +65,43 @@ func newTemplate(filename string) *template.Template {
 		log.Fatalln(err)
 	}
 	return templ
+}
+
+func rootHandler(w http.ResponseWriter, r *http.Request) {
+	indexTempl := newTemplate("index.gohtml")
+	indexTempl.Execute(w, nil)
+}
+
+func authorizeHandler(w http.ResponseWriter, r *http.Request) {
+	authorizeURL, err := url.Parse(authServer.authEndpoint)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	authorizeURL.Query().Set("response_type", "code")
+	authorizeURL.Query().Set("scope", client.scope)
+	authorizeURL.Query().Set("client_id", client.id)
+	authorizeURL.Query().Set("redirect_uri", client.redirect_uris[0])
+
+	http.RedirectHandler(authorizeURL.String(), http.StatusFound).ServeHTTP(w, r)
+}
+
+func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
+	indexTempl := newTemplate("index.gohtml")
+	errorTempl := newTemplate("error.gohtml")
+
+	accessToken, err := r.Cookie("accessToken")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		whatHappened := serverError{
+			StatusCode:    http.StatusUnauthorized,
+			StatusMessage: http.StatusText(http.StatusUnauthorized),
+			ErrorMessage:  "Missing access token",
+		}
+		errorTempl.Execute(w, whatHappened)
+		return
+	}
+	// http.Post(protectedResource, )
+	creds := credentials{accessToken: accessToken.Name}
+	indexTempl.Execute(w, creds)
 }
