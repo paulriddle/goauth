@@ -78,10 +78,12 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatalln(err)
 	}
 
-	authorizeURL.Query().Set("response_type", "code")
-	authorizeURL.Query().Set("scope", client.scope)
-	authorizeURL.Query().Set("client_id", client.id)
-	authorizeURL.Query().Set("redirect_uri", client.redirect_uris[0])
+	v := url.Values{}
+	v.Set("response_type", "code")
+	v.Set("scope", client.scope)
+	v.Set("client_id", client.id)
+	v.Set("redirect_uri", client.redirect_uris[0])
+	authorizeURL.RawQuery = v.Encode()
 
 	http.RedirectHandler(authorizeURL.String(), http.StatusFound).ServeHTTP(w, r)
 }
