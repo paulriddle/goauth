@@ -27,7 +27,7 @@ type authServerInfo struct {
 }
 
 type credentials struct {
-	accessToken string
+	AccessToken string
 }
 
 type serverError struct {
@@ -67,9 +67,14 @@ func newTemplate(filename string) *template.Template {
 	return templ
 }
 
+func newCredentials() credentials {
+	return credentials{"NULL"}
+}
+
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	indexTempl := newTemplate("index.gohtml")
-	indexTempl.Execute(w, nil)
+	creds := newCredentials()
+	indexTempl.Execute(w, creds)
 }
 
 func authorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +109,6 @@ func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// http.Post(protectedResource, )
-	creds := credentials{accessToken: accessToken.Name}
+	creds := credentials{AccessToken: accessToken.Name}
 	indexTempl.Execute(w, creds)
 }
