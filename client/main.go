@@ -38,8 +38,8 @@ type serverError struct {
 
 func main() {
 	// Panic if any of the templates are missing
-	indexTempl := newTemplate("index.html")
-	errorTempl := newTemplate("error.html")
+	indexTempl := newTemplate("index.gohtml")
+	errorTempl := newTemplate("error.gohtml")
 
 	client := clientInfo{
 		id:            "goauth",
