@@ -65,49 +65,25 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 	client_id := r.URL.Query().Get("client_id")
 	client, ok := clients[client_id]
 	if !ok {
-		errorTempl := newTemplate("error.gohtml")
 		errMessage := fmt.Sprintf("Unkown client %s", client_id)
-		status := http.StatusForbidden
-		w.WriteHeader(status)
-		whatHappened := httpError{
-			StatusCode:    status,
-			StatusMessage: http.StatusText(status),
-			ErrorMessage:  errMessage,
-		}
-		errorTempl.Execute(w, whatHappened)
+		renderError(w, http.StatusForbidden, errMessage)
 		return
 	}
 	redirect_uri := r.URL.Query().Get("redirect_uri")
 	if !contains(client.redirect_uris, redirect_uri) {
-		errorTempl := newTemplate("error.gohtml")
 		errMessage := fmt.Sprintf("Mismatched redirect URI, expected one of %+v, got %s",
 			client.redirect_uris,
 			redirect_uri)
-		status := http.StatusForbidden
-		w.WriteHeader(status)
-		whatHappened := httpError{
-			StatusCode:    status,
-			StatusMessage: http.StatusText(status),
-			ErrorMessage:  errMessage,
-		}
-		errorTempl.Execute(w, whatHappened)
+		renderError(w, http.StatusForbidden, errMessage)
 		return
 	}
 	// TODO: Add support for a slice for scopes
 	scope := r.URL.Query().Get("scope")
 	// TODO: Client might not have any scopes
 	if client.scope != scope {
-		errorTempl := newTemplate("error.gohtml")
 		errMessage := fmt.Sprintf("Invalid scope, expected %s, got %s",
 			client.scope, scope)
-		status := http.StatusForbidden
-		w.WriteHeader(status)
-		whatHappened := httpError{
-			StatusCode:    status,
-			StatusMessage: http.StatusText(status),
-			ErrorMessage:  errMessage,
-		}
-		errorTempl.Execute(w, whatHappened)
+		renderError(w, http.StatusForbidden, errMessage)
 		return
 	}
 	rand.Seed(time.Now().UnixNano())
@@ -124,6 +100,17 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 		scope,
 	}
 	approveTempl.Execute(w, approveTemplData)
+}
+
+func renderError(w http.ResponseWriter, status int, msg string) {
+	errorTempl := newTemplate("error.gohtml")
+	w.WriteHeader(status)
+	whatHappened := httpError{
+		StatusCode:    status,
+		StatusMessage: http.StatusText(status),
+		ErrorMessage:  msg,
+	}
+	errorTempl.Execute(w, whatHappened)
 }
 
 func contains(slice []string, target string) bool {
