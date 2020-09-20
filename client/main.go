@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 const (
@@ -49,6 +51,7 @@ var authServer = authServerInfo{
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(rootHandler))
 	mux.Handle("/authorize", http.HandlerFunc(authorizeHandler))
@@ -71,6 +74,18 @@ func newCredentials() credentials {
 	return credentials{"NULL"}
 }
 
+var symbols = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+var symbolsLen = len(symbols)
+
+// TODO: Use more advanced cryptography
+func randomstring(n int) string {
+	result := make([]rune, n)
+	for i := range result {
+		result[i] = symbols[rand.Intn(symbolsLen)]
+	}
+	return string(result)
+}
+
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	indexTempl := newTemplate("index.gohtml")
 	creds := newCredentials()
@@ -88,6 +103,7 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 	v.Set("scope", client.scope)
 	v.Set("client_id", client.id)
 	v.Set("redirect_uri", client.redirect_uris[0])
+	v.Set("state", randomstring(8))
 	authorizeURL.RawQuery = v.Encode()
 
 	http.RedirectHandler(authorizeURL.String(), http.StatusFound).ServeHTTP(w, r)
