@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	serverAddress     = "http://localhost:8080"
-	authServerAddress = "http://localhost:8081"
-	protectedResource = "http://localhost:8082"
+	serverAddress     = "http://localhost:9000"
+	authServerAddress = "http://localhost:9001"
+	protectedResource = "http://localhost:9002"
 )
 
 type clientInfo struct {
@@ -37,9 +37,9 @@ type serverError struct {
 }
 
 var client = clientInfo{
-	id:            "goauth",
-	secret:        "random-string",
-	scope:         "all",
+	id:            "oauth-client-1",
+	secret:        "oauth-client-secret-1",
+	scope:         "foo",
 	redirect_uris: []string{serverAddress + "/callback"},
 }
 
@@ -56,7 +56,7 @@ func main() {
 	})
 	mux.HandleFunc("/fetch_resource", http.HandlerFunc(fetchResourceHandler))
 	fmt.Println("Listening on " + serverAddress)
-	log.Fatal(http.ListenAndServe(":8080", mux))
+	log.Fatal(http.ListenAndServe(":9000", mux))
 }
 
 func newTemplate(filename string) *template.Template {
