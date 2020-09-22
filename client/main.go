@@ -61,6 +61,10 @@ var authServer = authServerInfo{
 	tokenEndpoint: authServerAddress + "/token",
 }
 
+var AccessToken string
+var RefreshToken string
+var Scope string
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	mux := http.NewServeMux()
@@ -94,7 +98,8 @@ func randomstring(n int) string {
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	indexTempl := newTemplate("index.gohtml")
-	indexTempl.Execute(w, nil)
+	creds := credentials{AccessToken, RefreshToken, Scope}
+	indexTempl.Execute(w, creds)
 }
 
 func authorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -168,12 +173,13 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 			// TODO: Render error
 			log.Fatalln(err)
 		}
+
+		AccessToken = accessTokenData.AccessToken
+		RefreshToken = accessTokenData.RefreshToken
+		Scope = accessTokenData.Scope
+
 		indexTempl := newTemplate("index.gohtml")
-		creds := credentials{
-			AccessToken:  accessTokenData.AccessToken,
-			RefreshToken: accessTokenData.RefreshToken,
-			Scope:        accessTokenData.Scope,
-		}
+		creds := credentials{AccessToken, RefreshToken, Scope}
 		indexTempl.Execute(w, creds)
 	} else {
 		renderError(w, resp.StatusCode, "Error requesting access token")
