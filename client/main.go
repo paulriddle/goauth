@@ -54,6 +54,7 @@ var authServer = authServerInfo{
 	tokenEndpoint: authServerAddress + "/token",
 }
 
+var State string
 var AccessToken string
 var RefreshToken string
 var Scope string
@@ -106,7 +107,8 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 	v.Set("scope", client.scope)
 	v.Set("client_id", client.id)
 	v.Set("redirect_uri", client.redirect_uris[0])
-	v.Set("state", randomstring(8))
+	State := randomstring(8)
+	v.Set("state", State)
 	authorizeURL.RawQuery = v.Encode()
 
 	http.RedirectHandler(authorizeURL.String(), http.StatusFound).ServeHTTP(w, r)
@@ -133,6 +135,13 @@ func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	recievedState := r.URL.Query().Get("state")
+	if recievedState != State {
+		errMsg := fmt.Sprintf("State does not match: expected %s got %s",
+			State, recievedState)
+		renderError(w, http.StatusForbidden, errMsg)
+	}
+
 	code := r.URL.Query().Get("code")
 	params := url.Values{
 		"grant_type":   {"authorization_code"},
