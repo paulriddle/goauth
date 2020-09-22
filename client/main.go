@@ -36,13 +36,6 @@ type credentials struct {
 	Scope        string
 }
 
-// TODO: Rename to httpError
-type serverError struct {
-	StatusCode    int
-	StatusMessage string
-	ErrorMessage  string
-}
-
 type httpError struct {
 	StatusCode    int
 	StatusMessage string
@@ -126,7 +119,7 @@ func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
 	accessToken, err := r.Cookie("accessToken")
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		whatHappened := serverError{
+		whatHappened := httpError{
 			StatusCode:    http.StatusUnauthorized,
 			StatusMessage: http.StatusText(http.StatusUnauthorized),
 			ErrorMessage:  "Missing access token",
