@@ -31,6 +31,7 @@ type authServerInfo struct {
 }
 
 type credentials struct {
+	State        string
 	AccessToken  string
 	RefreshToken string
 	Scope        string
@@ -54,10 +55,7 @@ var authServer = authServerInfo{
 	tokenEndpoint: authServerAddress + "/token",
 }
 
-var State string
-var AccessToken string
-var RefreshToken string
-var Scope string
+var Credentials credentials
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -92,8 +90,7 @@ func randomstring(n int) string {
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	indexTempl := newTemplate("index.gohtml")
-	creds := credentials{AccessToken, RefreshToken, Scope}
-	indexTempl.Execute(w, creds)
+	indexTempl.Execute(w, Credentials)
 }
 
 func authorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -107,8 +104,8 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 	v.Set("scope", client.scope)
 	v.Set("client_id", client.id)
 	v.Set("redirect_uri", client.redirect_uris[0])
-	State := randomstring(8)
-	v.Set("state", State)
+	Credentials.State = randomstring(8)
+	v.Set("state", Credentials.State)
 	authorizeURL.RawQuery = v.Encode()
 
 	http.RedirectHandler(authorizeURL.String(), http.StatusFound).ServeHTTP(w, r)
@@ -136,9 +133,9 @@ func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	recievedState := r.URL.Query().Get("state")
-	if recievedState != State {
+	if recievedState != Credentials.State {
 		errMsg := fmt.Sprintf("State does not match: expected %s got %s",
-			State, recievedState)
+			Credentials.State, recievedState)
 		renderError(w, http.StatusForbidden, errMsg)
 		return
 	}
@@ -180,13 +177,12 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		AccessToken = accessTokenData.AccessToken
-		RefreshToken = accessTokenData.RefreshToken
-		Scope = accessTokenData.Scope
+		Credentials.AccessToken = accessTokenData.AccessToken
+		Credentials.RefreshToken = accessTokenData.RefreshToken
+		Credentials.Scope = accessTokenData.Scope
 
 		indexTempl := newTemplate("index.gohtml")
-		creds := credentials{AccessToken, RefreshToken, Scope}
-		indexTempl.Execute(w, creds)
+		indexTempl.Execute(w, Credentials)
 	} else {
 		renderError(w, resp.StatusCode, "Error requesting access token")
 	}
