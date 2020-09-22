@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -29,10 +31,19 @@ type authServerInfo struct {
 }
 
 type credentials struct {
-	AccessToken string
+	AccessToken  string
+	RefreshToken string
+	Scope        string
 }
 
+// TODO: Rename to httpError
 type serverError struct {
+	StatusCode    int
+	StatusMessage string
+	ErrorMessage  string
+}
+
+type httpError struct {
 	StatusCode    int
 	StatusMessage string
 	ErrorMessage  string
@@ -55,8 +66,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(rootHandler))
 	mux.Handle("/authorize", http.HandlerFunc(authorizeHandler))
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-	})
+	mux.HandleFunc("/callback", http.HandlerFunc(callbackHandler))
 	mux.HandleFunc("/fetch_resource", http.HandlerFunc(fetchResourceHandler))
 	fmt.Println("Listening on " + serverAddress)
 	log.Fatal(http.ListenAndServe(":9000", mux))
@@ -68,10 +78,6 @@ func newTemplate(filename string) *template.Template {
 		log.Fatalln(err)
 	}
 	return templ
-}
-
-func newCredentials() credentials {
-	return credentials{"NULL"}
 }
 
 var symbols = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
@@ -88,8 +94,7 @@ func randomstring(n int) string {
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	indexTempl := newTemplate("index.gohtml")
-	creds := newCredentials()
-	indexTempl.Execute(w, creds)
+	indexTempl.Execute(w, nil)
 }
 
 func authorizeHandler(w http.ResponseWriter, r *http.Request) {
@@ -127,4 +132,61 @@ func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
 	// http.Post(protectedResource, )
 	creds := credentials{AccessToken: accessToken.Name}
 	indexTempl.Execute(w, creds)
+}
+
+func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	params := url.Values{
+		"grant_type":   {"authorization_code"},
+		"code":         {code},
+		"redirect_uri": {client.redirect_uris[0]},
+	}
+	payload := strings.NewReader(params.Encode())
+	req, err := http.NewRequest("POST", authServer.tokenEndpoint, payload)
+	if err != nil {
+		// TODO: Render error
+		log.Fatalln(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(url.QueryEscape(client.id), url.QueryEscape(client.secret))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Println("sentinel")
+		// TODO: Render error
+		log.Fatalln(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		var accessTokenData struct {
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			Scope        string
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&accessTokenData); err != nil {
+			// TODO: Render error
+			log.Fatalln(err)
+		}
+		indexTempl := newTemplate("index.gohtml")
+		creds := credentials{
+			AccessToken:  accessTokenData.AccessToken,
+			RefreshToken: accessTokenData.RefreshToken,
+			Scope:        accessTokenData.Scope,
+		}
+		indexTempl.Execute(w, creds)
+	} else {
+		renderError(w, resp.StatusCode, "Error requesting access token")
+	}
+}
+
+func renderError(w http.ResponseWriter, status int, msg string) {
+	errorTempl := newTemplate("error.gohtml")
+	w.WriteHeader(status)
+	whatHappened := httpError{
+		StatusCode:    status,
+		StatusMessage: http.StatusText(status),
+		ErrorMessage:  msg,
+	}
+	errorTempl.Execute(w, whatHappened)
 }
