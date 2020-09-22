@@ -140,6 +140,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 		errMsg := fmt.Sprintf("State does not match: expected %s got %s",
 			State, recievedState)
 		renderError(w, http.StatusForbidden, errMsg)
+		return
 	}
 
 	code := r.URL.Query().Get("code")
@@ -151,17 +152,19 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	payload := strings.NewReader(params.Encode())
 	req, err := http.NewRequest("POST", authServer.tokenEndpoint, payload)
 	if err != nil {
-		// TODO: Render error
-		log.Fatalln(err)
+		errMsg := fmt.Sprintf(`Failure: http.NewRequest("POST", %s, %+v)\n%+v`,
+			authServer.tokenEndpoint, payload, err)
+		renderError(w, http.StatusInternalServerError, errMsg)
+		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(url.QueryEscape(client.id), url.QueryEscape(client.secret))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Println("sentinel")
-		// TODO: Render error
-		log.Fatalln(err)
+		errMsg := fmt.Sprintf("Failure: http.DefaultClient.Do(%+v)\n%+v", req, err)
+		renderError(w, http.StatusInternalServerError, errMsg)
+		return
 	}
 	defer resp.Body.Close()
 
@@ -172,8 +175,9 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 			Scope        string
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&accessTokenData); err != nil {
-			// TODO: Render error
-			log.Fatalln(err)
+			errMsg := fmt.Sprintf("Error parsing JSON: %+v", err)
+			renderError(w, http.StatusInternalServerError, errMsg)
+			return
 		}
 
 		AccessToken = accessTokenData.AccessToken
