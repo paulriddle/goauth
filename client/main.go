@@ -115,6 +115,10 @@ func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
 	indexTempl := newTemplate("index.gohtml")
 	errorTempl := newTemplate("error.gohtml")
 
+	if Credentials.AccessToken == "" {
+		renderError(w, http.StatusForbidden, "Missing access token")
+	}
+
 	accessToken, err := r.Cookie("accessToken")
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
