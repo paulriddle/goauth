@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	serverAddress     = "http://localhost:9000"
-	authServerAddress = "http://localhost:9001"
-	protectedResource = "http://localhost:9002"
+	serverAddress            = "http://localhost:9000"
+	authServerAddress        = "http://localhost:9001"
+	protectedResourceAddress = "http://localhost:9002"
 )
 
 type clientInfo struct {
@@ -28,6 +28,10 @@ type clientInfo struct {
 type authServerInfo struct {
 	authEndpoint  string
 	tokenEndpoint string
+}
+
+type protectedResourceInfo struct {
+	resourceEndpoint string
 }
 
 type credentials struct {
@@ -53,6 +57,10 @@ var client = clientInfo{
 var authServer = authServerInfo{
 	authEndpoint:  authServerAddress + "/authorize",
 	tokenEndpoint: authServerAddress + "/token",
+}
+
+var protectedResource = protectedResourceInfo{
+	resourceEndpoint: protectedResourceAddress + "/resource",
 }
 
 var Credentials credentials
@@ -112,27 +120,42 @@ func authorizeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func fetchResourceHandler(w http.ResponseWriter, r *http.Request) {
-	indexTempl := newTemplate("index.gohtml")
-	errorTempl := newTemplate("error.gohtml")
-
 	if Credentials.AccessToken == "" {
 		renderError(w, http.StatusForbidden, "Missing access token")
-	}
-
-	accessToken, err := r.Cookie("accessToken")
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		whatHappened := httpError{
-			StatusCode:    http.StatusUnauthorized,
-			StatusMessage: http.StatusText(http.StatusUnauthorized),
-			ErrorMessage:  "Missing access token",
-		}
-		errorTempl.Execute(w, whatHappened)
 		return
 	}
-	// http.Post(protectedResource, )
-	creds := credentials{AccessToken: accessToken.Name}
-	indexTempl.Execute(w, creds)
+
+	req, err := http.NewRequest("POST", protectedResource.resourceEndpoint, nil)
+	if err != nil {
+		errMsg := fmt.Sprintf(`Failure: http.NewRequest("POST", %s, nil)\n%+v`,
+			protectedResource.resourceEndpoint, err)
+		renderError(w, http.StatusInternalServerError, errMsg)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+Credentials.AccessToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		errMsg := fmt.Sprintf(`Failure: http.DefaultClient.Do(%+v)\n%+v`, req, err)
+		renderError(w, http.StatusInternalServerError, errMsg)
+		return
+	}
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		var data struct {
+			Name        string
+			Description string
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			errMsg := fmt.Sprintf("Error parsing JSON: %+v", err)
+			renderError(w, http.StatusInternalServerError, errMsg)
+			return
+		}
+
+		indexTempl := newTemplate("index.gohtml")
+		indexTempl.Execute(w, data)
+	} else {
+		renderError(w, resp.StatusCode, "Error requesting protected resource")
+	}
 }
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
